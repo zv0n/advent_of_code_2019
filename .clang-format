@@ -1,0 +1,8 @@
+﻿---
+AllowShortFunctionsOnASingleLine: Empty
+BasedOnStyle: LLVM
+IndentWidth: '4'
+SpacesInParentheses: 'true'
+TabWidth: '4'
+
+...
