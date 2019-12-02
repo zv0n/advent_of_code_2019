@@ -19,6 +19,6 @@ int main() {
         weight -= 2;
         fuel += weight;
     }
-    printf( "TOTAL WEIGHT: %zu\n", fuel );
+    printf( "TOTAL FUEL: %zu\n", fuel );
     free( input );
 }
