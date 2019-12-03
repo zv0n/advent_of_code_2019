@@ -67,20 +67,6 @@ size_t crossesLines( int start, int end, int column, int *input,
                 size_t distance_local = manhattan_distance( input[i], column );
                 if ( distance_local < distance )
                     distance = distance_local;
-            } else {
-                int min = input[i] < input[i + 2] ? input[i] : input[i + 2];
-                int max = min == input[i] ? input[i + 2] : input[i];
-                int min_2 = start < end ? start : end;
-                int max_2 = min_2 == start ? end : start;
-                if( min_2 > min )
-                    min = min_2;
-                if( max_2 < max )
-                    max = max_2;
-                for ( ; min < max; min++ ) {
-                    size_t distance_local = manhattan_distance( min, column );
-                    if ( distance_local < distance )
-                        distance = distance_local;
-                }
             }
         }
     }
@@ -102,21 +88,6 @@ size_t crossesColumns( int start, int end, int line, int *input,
                     manhattan_distance( line, input[i + 1] );
                 if ( distance_local < distance )
                     distance = distance_local;
-            } else {
-                int min =
-                    input[i + 1] < input[i + 3] ? input[i + 1] : input[i + 3];
-                int max = min == input[i + 1] ? input[i + 3] : input[i + 1];
-                int min_2 = start < end ? start : end;
-                int max_2 = min_2 == start ? end : start;
-                if( min_2 > min )
-                    min = min_2;
-                if( max_2 < max )
-                    max = max_2;
-                for ( ; min < max; min++ ) {
-                    size_t distance_local = manhattan_distance( line, min );
-                    if ( distance_local < distance )
-                        distance = distance_local;
-                }
             }
         }
     }
