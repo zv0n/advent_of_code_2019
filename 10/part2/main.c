@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 void freeAsteroids( int **asteroids, size_t height ) {
     for( size_t i = 0; i < height; i++ ) {
@@ -34,18 +35,27 @@ void addAsteroids( int ***asteroids, char *input, const size_t asteroid_width, s
     }
 }
 
-void printAsteroids( int **input, size_t height, size_t width ) {
+void returnToStartPrint( size_t height, size_t width ) {
+    printf( "\x1b[%zuD", width );
+    printf( "\x1b[%zuA", height );
+}
+
+void printAsteroids( int **input, size_t height, size_t width, int index_x, int index_y, int threshhold, int ship_x, int ship_y ) {
     for( size_t i = 0; i < height; i++ ) {
         for( size_t j = 0; j < width; j++ ) {
-            if( input[i][j] == 0 )
+            if( (int)i == index_y && (int)j == index_x )
+                printf( "\x1b[31;1mX\x1b[0m" );
+            else if ( (int)i == ship_y && (int)j == ship_x )
+                printf( "\x1b[32;1m0\x1b[0m" );
+            else if( input[i][j] == 0 )
                 putchar( '.' );
-            else
+            else if ( input[i][j] <= threshhold )
                 putchar( '#' );
+            else
+                printf( "\x1b[33m#\x1b[0m" );
         }
         putchar( '\n' );
     }
-    putchar( '\n' );
-    putchar( '\n' );
 }
 
 size_t canSee( int x, int y, int **input, size_t height, size_t width ) {
@@ -102,9 +112,9 @@ size_t canSee( int x, int y, int **input, size_t height, size_t width ) {
 
 int GCD( int x, int y ) {
     if( x == 0 )
-        return y;
+        return y > 0 ? y : -y;
     if( y == 0 )
-        return x;
+        return x > 0 ? x : -x;
     int bigger = 0;
     int smaller = 0;
     if( x > y ) {
@@ -126,8 +136,10 @@ int GCD( int x, int y ) {
 
 void findAsteroid( int **asteroids, int position, size_t *x, size_t *y, size_t height, size_t width ) {
     asteroids[*y][*x] = 0;
-    double input_x = *x + 0.5;
-    double input_y = *y + 0.5;
+    int ship_x = *x;
+    int ship_y = *y;
+    double input_x = ship_x + 0.5;
+    double input_y = ship_y + 0.5;
     int hit = 0;
     double coord_y = -1;
     double coord_x = 0;
@@ -138,8 +150,16 @@ void findAsteroid( int **asteroids, int position, size_t *x, size_t *y, size_t h
     double partial_low_y = 0;
     double partial_high_y = 0;
     int threshhold = 1;
-    bool found = false;
     size_t counter = 0;
+#ifdef VISUAL
+    size_t asteroid_count = 0;
+    for( size_t i = 0; i < height; i++ ) {
+        for( size_t j = 0; j < width; j++ ) {
+            if( asteroids[i][j] == 1 )
+                asteroid_count++;
+        }
+    }
+#endif
     while( 1 ) {
         double copy_x = input_x, copy_y = input_y;
         if( coord_x >= 0 ) {
@@ -156,29 +176,29 @@ void findAsteroid( int **asteroids, int position, size_t *x, size_t *y, size_t h
             partial_low_y = 0.5 + coord_y/4.0;
             partial_high_y= 0.5 - coord_y/4.0;
         }
-        found = false;
         while( copy_x > 0 && copy_x < width && copy_y > 0 && copy_y < height ) {
             double x_partial = fmod( copy_x, 1.0 );
             double y_partial = fmod( copy_y, 1.0 );
-//            printf( "X_PARTIAL: %f, LOW: %f, HIGH: %f\n", x_partial, partial_low_x, partial_high_x );
-//            printf( "Y_PARTIAL: %f, LOW: %f, HIGH: %f\n", y_partial, partial_low_y, partial_high_y );
             if( (( x_partial > partial_low_x && x_partial < partial_high_x) || coord_x == 0.0 ) && ( (y_partial > partial_low_y && y_partial < partial_high_y ) || coord_y == 0.0 ) ) {
                 int index_x = (int)(copy_x - x_partial);
                 int index_y = (int)(copy_y - y_partial);
-//                printf( "INDEXES: x: %i, y: %i\n", index_x, index_y );
                 if( asteroids[index_y][index_x] <= threshhold && asteroids[index_y][index_x] != 0 ) {
                     hit++;
-                    printf( "%03i: HIT ASTEROID X=%i,Y=%i\n", hit, index_x, index_y );
                     asteroids[index_y][index_x] = 0;
-                    found = true;
                     if( hit == position ) {
                         *x = index_x;
                         *y = index_y;
+#ifndef VISUAL
                         goto end;
+#endif
                     }
-                    int diff_x = index_x - *x;
-                    int diff_y = index_y - *y;
+                    int diff_x = index_x - ship_x;
+                    int diff_y = index_y - ship_y;
                     int divisor = GCD( diff_x, diff_y );
+#ifdef VISUAL
+                    int orig_x = index_x;
+                    int orig_y = index_y;
+#endif
                     diff_x /= divisor;
                     diff_y /= divisor;
                     index_x += diff_x;
@@ -190,12 +210,19 @@ void findAsteroid( int **asteroids, int position, size_t *x, size_t *y, size_t h
                         index_x += diff_x;
                         index_y += diff_y;
                     }
+#ifdef VISUAL
+                    printAsteroids( asteroids, height, width, orig_x, orig_y, threshhold, ship_x, ship_y );
+                    if( hit == (int)asteroid_count ) {
+                        goto end;
+                    }
+                    usleep( 100000 );
+                    returnToStartPrint( height, width );
+#endif
                     break;
                 }
             }
             copy_x += coord_x;
             copy_y += coord_y;
-//            printf( "COPY_X: %f, COPY_Y: %f\n", copy_x, copy_y );
         }
         counter++;
         coord_x += x_add;
@@ -204,19 +231,15 @@ void findAsteroid( int **asteroids, int position, size_t *x, size_t *y, size_t h
             x_add = -x_add;
             coord_x = 1.0;
             coord_y = 0.0;
-            printf( "90!\n" );
         } else if( counter == 2000 ) {
             y_add = -y_add;
             coord_x = 0.0;
             coord_y = 1.0;
-            printf( "180!\n" );
         } else if( counter == 3000 ) {
             x_add = -x_add;
             coord_x = -1.0;
             coord_y = 0.0;
-            printf( "270!\n" );
         } else if( counter == 4000 ) {
-            printf( "INCREASING!\n" );
             threshhold++;
             counter = 0;
             y_add = -y_add;
@@ -259,7 +282,7 @@ int main() {
     printf( "IT HAS COORDINATES: X=%zu, Y=%zu\n", best_x, best_y );
 
     findAsteroid( asteroids, 200, &best_x, &best_y, asteroid_lines, asteroid_width );
-    printf( "200th ASTEROID IS AT POSITION: X=%zu, Y=%zu\nX*100 + Y=%zu\n", best_x, best_y, best_x*100 + best_y);
+    printf( "200th ASTEROID IS AT POSITION: X=%zu, Y=%zu\nX*100 + Y = %zu\n", best_x, best_y, best_x*100 + best_y);
 
     // TODO fix memory leak
     freeAsteroids( asteroids, asteroid_lines );
