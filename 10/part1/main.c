@@ -96,6 +96,7 @@ int main() {
     char *input = NULL;
     size_t input_size = 0;
     size_t max_detect = 0;
+    size_t best_x = 0, best_y = 0;
     int **asteroids = NULL;
     int read_len = getline( &input, &input_size, in );
     const size_t asteroid_width = strlen( input ) - 1;
@@ -109,12 +110,16 @@ int main() {
             if( asteroids[i][j] == 0 )
                 continue;
             size_t can_see = canSee( j, i, asteroids, asteroid_lines, asteroid_width );
-            if( can_see > max_detect )
+            if( can_see > max_detect ) {
                 max_detect = can_see;
+                best_x = j;
+                best_y = i;
+            }
         }
     }
 
     printf( "MAXIMUM NUMBER OF ASTEROIDS THAT CAN BE SEEIN IS %zu\n", max_detect );
+    printf( "IT HAS COORDINATES: X=%zu, Y=%zu\n", best_x, best_y );
     free( asteroids );
     free( input );
 }
