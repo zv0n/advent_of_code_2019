@@ -47,13 +47,13 @@ size_t populateCode( ssize_t **code, char *input ) {
         code_len++;
         if ( code_len == array_len ) {
             array_len *= 2;
-            ssize_t *tmp = realloc( *code, array_len );
+            ssize_t *tmp = realloc( *code, array_len * sizeof( ssize_t ) );
             if ( tmp == NULL )
                 error( EXIT_FAILURE, errno, "realloc" );
             *code = tmp;
         }
     }
-    ssize_t *tmp = realloc( *code, code_len * 10 );
+    ssize_t *tmp = realloc( *code, code_len * 10 * sizeof( ssize_t ) );
     if ( tmp == NULL )
         error( EXIT_FAILURE, errno, "realloc" );
     *code = tmp;
@@ -99,22 +99,22 @@ void compute( ssize_t *code, size_t code_len ) {
         case 2:
             testOutOfBounds( actual_code_len, i + 3 );
             if ( flags & PARAM_ACTUAL_0 ) {
-                index = i+1;
+                index = i + 1;
             } else if ( flags & PARAM_RELATIVE_0 ) {
                 index = relative_base + code[i + 1];
             } else {
-                index = code[i+1];
+                index = code[i + 1];
             }
 
             testOutOfBounds( actual_code_len, index );
             res = code[index];
 
             if ( flags & PARAM_ACTUAL_1 ) {
-                index = i+2;
+                index = i + 2;
             } else if ( flags & PARAM_RELATIVE_1 ) {
                 index = relative_base + code[i + 2];
             } else {
-                index = code[i+2];
+                index = code[i + 2];
             }
 
             testOutOfBounds( actual_code_len, index );
@@ -130,7 +130,7 @@ void compute( ssize_t *code, size_t code_len ) {
             } else if ( flags & PARAM_RELATIVE_2 ) {
                 index = relative_base + code[i + 3];
             } else {
-                index = code[i+3];
+                index = code[i + 3];
             }
             testOutOfBounds( actual_code_len, index );
             code[index] = res;
@@ -143,9 +143,9 @@ void compute( ssize_t *code, size_t code_len ) {
                 error( EXIT_FAILURE, 0,
                        "LAST PARAM MUST BE IN MODE 0! Index: %zu", i );
             } else if ( flags & PARAM_RELATIVE_0 ) {
-                index = relative_base + code[i+1];
+                index = relative_base + code[i + 1];
             } else {
-                index = code[i+1];
+                index = code[i + 1];
             }
             testOutOfBounds( actual_code_len, index );
             getline( &input, &input_len, stdin );
@@ -159,11 +159,11 @@ void compute( ssize_t *code, size_t code_len ) {
         case 4:
             testOutOfBounds( actual_code_len, i + 1 );
             if ( flags & PARAM_ACTUAL_0 ) {
-                index = i+1;
+                index = i + 1;
             } else if ( flags & PARAM_RELATIVE_0 ) {
-                index = relative_base + code[ i + 1 ];
+                index = relative_base + code[i + 1];
             } else {
-                index = code[i+1];
+                index = code[i + 1];
             }
             testOutOfBounds( actual_code_len, index );
             printf( "%li\n", code[index] );
@@ -174,10 +174,10 @@ void compute( ssize_t *code, size_t code_len ) {
             testOutOfBounds( actual_code_len, i + 2 );
             if ( flags & PARAM_ACTUAL_0 ) {
                 index = i + 1;
-            } else if ( flags & PARAM_RELATIVE_0) {
-                index = relative_base + code[i+1];
+            } else if ( flags & PARAM_RELATIVE_0 ) {
+                index = relative_base + code[i + 1];
             } else {
-                index = code[i+1];
+                index = code[i + 1];
             }
             testOutOfBounds( actual_code_len, index );
             temp_param = code[index];
@@ -186,7 +186,7 @@ void compute( ssize_t *code, size_t code_len ) {
                 if ( flags & PARAM_ACTUAL_1 ) {
                     index = i + 2;
                 } else if ( flags & PARAM_RELATIVE_1 ) {
-                    index = relative_base + code[i+2];
+                    index = relative_base + code[i + 2];
                 } else {
                     index = code[i + 2];
                 }
@@ -202,9 +202,9 @@ void compute( ssize_t *code, size_t code_len ) {
             if ( flags & PARAM_ACTUAL_0 ) {
                 index = i + 1;
             } else if ( flags & PARAM_RELATIVE_0 ) {
-                index = relative_base + code[i+1];
+                index = relative_base + code[i + 1];
             } else {
-                index = code[i+1];
+                index = code[i + 1];
             }
 
             testOutOfBounds( actual_code_len, index );
@@ -213,7 +213,7 @@ void compute( ssize_t *code, size_t code_len ) {
             if ( flags & PARAM_ACTUAL_1 ) {
                 index = i + 2;
             } else if ( flags & PARAM_RELATIVE_1 ) {
-                index = relative_base + code[i+2];
+                index = relative_base + code[i + 2];
             } else {
                 index = code[i + 2];
             }
@@ -229,9 +229,9 @@ void compute( ssize_t *code, size_t code_len ) {
                 error( EXIT_FAILURE, 0,
                        "LAST PARAM MUST BE IN MODE 0! Index: %zu", i );
             } else if ( flags & PARAM_RELATIVE_2 ) {
-                index = relative_base + code[i+3];
+                index = relative_base + code[i + 3];
             } else {
-                index = code[i+3];
+                index = code[i + 3];
             }
             testOutOfBounds( actual_code_len, index );
             code[index] = res;
@@ -242,9 +242,9 @@ void compute( ssize_t *code, size_t code_len ) {
             if ( flags & PARAM_ACTUAL_0 ) {
                 index = i + 1;
             } else if ( flags & PARAM_RELATIVE_0 ) {
-                index = relative_base + code[i+1];
+                index = relative_base + code[i + 1];
             } else {
-                index = code[i+1];
+                index = code[i + 1];
             }
             testOutOfBounds( actual_code_len, index );
             relative_base += code[index];
