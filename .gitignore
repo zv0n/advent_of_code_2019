@@ -4,6 +4,7 @@
 # don't ignore C files and Makefiles
 !*.c
 !*.h
+!input
 !Makefile
 
 # don't ignore advent dirs
