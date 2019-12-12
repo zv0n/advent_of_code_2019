@@ -287,7 +287,7 @@ void printIt( int **painted, size_t painted_len, int min_x, int max_x, int min_y
     for( size_t i = 0; i < painted_len; i++ ) {
         size_t x = painted[i][0];
         size_t y = painted[i][1];
-        pixels[y*width + x] = painted[i][2];
+        pixels[(y - min_y)*width + (x-min_x)] = painted[i][2];
     }
     writeBitmap( pixels, width, height );
     for( size_t i = 0; i < height; i++ ) {
@@ -303,12 +303,17 @@ void printIt( int **painted, size_t painted_len, int min_x, int max_x, int min_y
 }
 
 size_t guideRobot( int in_fd, int out_fd ) {
+#ifndef BLACK
     int **painted = malloc( sizeof( int * ) );
     painted[0] = malloc( sizeof( int ) * 3 );
     painted[0][0] = 0;
     painted[0][1] = 0;
     painted[0][2] = 1;
     size_t painted_len = 1;
+#else
+    int **painted = NULL;
+    size_t painted_len = 0;
+#endif
     int pos_x = 0;
     int pos_y = 0;
     int move_y = -1;
@@ -351,7 +356,7 @@ size_t guideRobot( int in_fd, int out_fd ) {
                 break;
             case '1':
                 if( !white ) {
-                    if( painted[cur_square_pos][0] == pos_x && painted[cur_square_pos][1] == pos_y ) {
+                    if( cur_square_pos < painted_len && painted[cur_square_pos][0] == pos_x && painted[cur_square_pos][1] == pos_y ) {
                         painted[cur_square_pos][2] = 1;
                     } else {
                         int **tmp = realloc( painted, ( painted_len + 1 ) * sizeof( int * ) );
