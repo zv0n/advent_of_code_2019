@@ -140,6 +140,7 @@ void compute( ssize_t *code, size_t code_len ) {
             break;
         case 3:
             printf( "I\n" );
+            fflush( stdout );
             testOutOfBounds( actual_code_len, i + 1 );
             if ( flags & PARAM_ACTUAL_0 ) {
                 error( EXIT_FAILURE, 0,
@@ -169,6 +170,7 @@ void compute( ssize_t *code, size_t code_len ) {
             }
             testOutOfBounds( actual_code_len, index );
             printf( "%li\n", code[index] );
+            fflush( stdout );
             i += 2;
             break;
         case 5:
@@ -277,10 +279,11 @@ void findExtremes( int **pixels, int len_x, int len_y, int *max_x, int *max_y ) 
     }
 }
 
-void printIt( int **pixels, int max_x, int max_y, bool ret ) {
+void printIt( int **pixels, int max_x, int max_y, int score, bool ret ) {
     int width;
     int height;
     findExtremes( pixels, max_x, max_y, &width, &height );
+    printf( "SCORE: %06i\n", score );
     for( int i = 0; i <= height; i++ ) {
         for( int j = 0; j <= width; j++ ) {
             if( pixels[i][j] == 0 )
@@ -297,12 +300,13 @@ void printIt( int **pixels, int max_x, int max_y, bool ret ) {
         printf( "\n" );
     }
     if( ret ) {
-        printf( "\x1b[%iD\x1b[%iA", width+1, height+1 );
+        printf( "\x1b[%iD\x1b[%iA", width+1, height+2 );
         usleep( 6000 );
     }
 }
 
 int playGame( int in_fd, int out_fd ) {
+    printf("\x1b[?25l");
     FILE *f_in = fdopen( in_fd, "r" );
     char *input = NULL;
     size_t input_len = 0;
@@ -369,13 +373,14 @@ int playGame( int in_fd, int out_fd ) {
         }
 
         pixels[y][x] = tile;
-        printIt( pixels, max_x, max_y, true );
+        printIt( pixels, max_x, max_y, score, true );
     }
-    printIt( pixels, max_x, max_y, false );
+    printIt( pixels, max_x, max_y, score, false );
     for( int i = 0; i < max_y; i++ ) {
         free( pixels[i] );
     }
     free( pixels );
+    printf("\x1b[?25h");
 
     return score;
 }
@@ -395,9 +400,10 @@ int main() {
     pipe( pipes );
     int robot_out = pipes[1];
     int program_in = pipes[0];
-    printf( "STARTING COMPUTING\n" );
     int pid = fork();
     if ( pid == 0 ) {
+        close( program_in );
+        close( program_out );
         if ( dup2( robot_in, STDIN_FILENO ) == -1 )
             error( EXIT_FAILURE, errno, "dup2" );
         if ( dup2( robot_out, STDOUT_FILENO ) == -1 )
@@ -408,6 +414,8 @@ int main() {
     } else if ( pid < 0 ) {
         error( EXIT_FAILURE, errno, "fork" );
     }
+    close( robot_in );
+    close( robot_out );
     printf( "THE FINAL SCORE IS %i\n",
             playGame( program_in, program_out ) );
     free( code );
