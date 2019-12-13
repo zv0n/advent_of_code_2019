@@ -397,7 +397,7 @@ int main() {
     int program_in = pipes[0];
     printf( "STARTING COMPUTING\n" );
     int pid = fork();
-    if ( pid > 0 ) {
+    if ( pid == 0 ) {
         if ( dup2( robot_in, STDIN_FILENO ) == -1 )
             error( EXIT_FAILURE, errno, "dup2" );
         if ( dup2( robot_out, STDOUT_FILENO ) == -1 )
