@@ -64,7 +64,7 @@ int getInstruction( int code, size_t *flags ) {
     return ret;
 }
 
-void compute( int *code, size_t code_len, const char *debug ) {
+void compute( int *code, size_t code_len ) {
     int res = 0;
     int temp_param = 0;
     char *end = NULL;
@@ -255,7 +255,6 @@ int main() {
     if ( tmp == NULL )
         error( EXIT_FAILURE, errno, "malloc" );
     memcpy( tmp, code, code_len );
-    const int *code_backup = tmp;
     char phase_input[2];
     size_t pipe_read = 0;
     FILE *output = fdopen( pipes_in[0], "r" );
@@ -267,7 +266,7 @@ int main() {
     printf( "STARTING COMPUTING!\n" );
     for ( int i = 0; i < 120; i++ ) {
         int pid = fork();
-        if ( pid > 0 ) {
+        if ( pid == 0 ) {
             if ( dup2( pipes_out[0], STDIN_FILENO ) == -1 )
                 error( EXIT_FAILURE, errno, "dup2" );
             if ( dup2( pipes12[1], STDOUT_FILENO ) == -1 )
@@ -282,13 +281,13 @@ int main() {
             close( pipes34[1] );
             close( pipes45[0] );
             close( pipes45[1] );
-            compute( code, code_len, "1" );
+            compute( code, code_len );
             exit(0);
         } else if ( pid < 0 ) {
             error( EXIT_FAILURE, errno, "fork" );
         }
         pid = fork();
-        if ( pid > 0 ) {
+        if ( pid == 0 ) {
             if ( dup2( pipes12[0], STDIN_FILENO ) == -1 )
                 error( EXIT_FAILURE, errno, "dup2" );
             if ( dup2( pipes23[1], STDOUT_FILENO ) == -1 )
@@ -303,13 +302,13 @@ int main() {
             close( pipes34[1] );
             close( pipes45[0] );
             close( pipes45[1] );
-            compute( code, code_len, "2" );
+            compute( code, code_len );
             exit(0);
         } else if ( pid < 0 ) {
             error( EXIT_FAILURE, errno, "fork" );
         }
         pid = fork();
-        if ( pid > 0 ) {
+        if ( pid == 0 ) {
             if ( dup2( pipes23[0], STDIN_FILENO ) == -1 )
                 error( EXIT_FAILURE, errno, "dup2" );
             if ( dup2( pipes34[1], STDOUT_FILENO ) == -1 )
@@ -324,13 +323,13 @@ int main() {
             close( pipes34[0] );
             close( pipes45[0] );
             close( pipes45[1] );
-            compute( code, code_len, "3" );
+            compute( code, code_len );
             exit(0);
         } else if ( pid < 0 ) {
             error( EXIT_FAILURE, errno, "fork" );
         }
         pid = fork();
-        if ( pid > 0 ) {
+        if ( pid == 0 ) {
             if ( dup2( pipes34[0], STDIN_FILENO ) == -1 )
                 error( EXIT_FAILURE, errno, "dup2" );
             if ( dup2( pipes45[1], STDOUT_FILENO ) == -1 )
@@ -345,13 +344,13 @@ int main() {
             close( pipes23[1] );
             close( pipes34[1] );
             close( pipes45[0] );
-            compute( code, code_len, "4" );
+            compute( code, code_len );
             exit(0);
         } else if ( pid < 0 ) {
             error( EXIT_FAILURE, errno, "fork" );
         }
         pid = fork();
-        if ( pid > 0 ) {
+        if ( pid == 0 ) {
             if ( dup2( pipes45[0], STDIN_FILENO ) == -1 )
                 error( EXIT_FAILURE, errno, "dup2" );
             if ( dup2( pipes_in[1], STDOUT_FILENO ) == -1 )
@@ -366,7 +365,7 @@ int main() {
             close( pipes34[0] );
             close( pipes34[1] );
             close( pipes45[1] );
-            compute( code, code_len, "5" );
+            compute( code, code_len );
             printf( "END\n" );
             exit(0);
         } else if ( pid < 0 ) {
