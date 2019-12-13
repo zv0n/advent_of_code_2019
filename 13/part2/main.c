@@ -140,7 +140,6 @@ void compute( ssize_t *code, size_t code_len ) {
             break;
         case 3:
             printf( "I\n" );
-            fflush( stdout );
             testOutOfBounds( actual_code_len, i + 1 );
             if ( flags & PARAM_ACTUAL_0 ) {
                 error( EXIT_FAILURE, 0,
@@ -170,7 +169,6 @@ void compute( ssize_t *code, size_t code_len ) {
             }
             testOutOfBounds( actual_code_len, index );
             printf( "%li\n", code[index] );
-            fflush( stdout );
             i += 2;
             break;
         case 5:
@@ -408,6 +406,7 @@ int main() {
             error( EXIT_FAILURE, errno, "dup2" );
         if ( dup2( robot_out, STDOUT_FILENO ) == -1 )
             error( EXIT_FAILURE, errno, "dup2" );
+        setbuf( stdout, NULL );
         compute( code, code_len );
         printf( "E\n" );
         exit(0);
