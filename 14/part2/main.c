@@ -244,6 +244,13 @@ int main() {
     }
     printf( "TOTAL FUEL: %zu\n",
             computeFuel( chemicals, CHEM_MAX, "FUEL", 1000000000000, chem_names ) );
+    for( size_t i = 0; i < CHEM_MAX; i++ ) {
+        free( chem_names[i] );
+    }
+    free( chem_names );
     free( input_og );
     freeChems( chemicals );
+    free( required );
+    free( excess );
+    fclose( in );
 }
