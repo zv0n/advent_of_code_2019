@@ -6,9 +6,11 @@
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/stat.h>
 
-#define CHEM_MAX 456977 // 26^4 + 1
+size_t CHEM_MAX = 0;
+size_t ORE_INDEX = 0;
 
 struct chem {
     struct chem **requirements;
@@ -22,7 +24,7 @@ size_t *excess = NULL;
 size_t *required = NULL;
 
 void addIndex( size_t index, size_t *working_len, size_t **working_indices ) {
-    if ( index == CHEM_MAX - 1 )
+    if ( index == ORE_INDEX )
         return;
     for ( size_t i = 0; i < *working_len; i++ ) {
         if ( index == working_indices[0][i] )
@@ -35,6 +37,32 @@ void addIndex( size_t index, size_t *working_len, size_t **working_indices ) {
     *working_indices = tmp;
     working_indices[0][*working_len] = index;
     ++*working_len;
+}
+
+size_t addChemical( char *chem_name, size_t *chem_num, char **chem_names ) {
+    char *chem_moving = chem_name;
+    char changed = 0;
+    while( *chem_moving != '\n' && *chem_moving != '\0' && *chem_moving != ' ' && *chem_moving != ','  )
+        chem_moving++;
+    if( *chem_moving == '\n' || *chem_moving == ' ' || *chem_moving == ',' ) {
+        changed = *chem_moving;
+        *chem_moving = '\0';
+    }
+    for( size_t i = 0; i < *chem_num; i++ ) {
+        if( !strcmp( chem_name, chem_names[i] ) ) {
+            if( changed )
+                *chem_moving = changed;
+            return i;
+        }
+
+    }
+    chem_names[*chem_num] = strdup( chem_name );
+    if( chem_names[*chem_num] == NULL )
+        error( EXIT_FAILURE, errno, "strdup" );
+    ++*chem_num;
+    if( changed )
+        *chem_moving = changed;
+    return *chem_num - 1;
 }
 
 size_t getOre( struct chem *chemical, size_t count ) {
@@ -88,22 +116,13 @@ size_t getOre( struct chem *chemical, size_t count ) {
         i++;
     }
     free( working_indices );
-    return required[CHEM_MAX - 1];
+    return required[ORE_INDEX];
 }
 
-size_t computeFuel( struct chem *chemicals, size_t chem_max, const char *name,
-                    size_t ore ) {
+size_t computeFuel( struct chem *chemicals, size_t chem_max, char *name,
+                    size_t ore, char **chem_names ) {
     chem_base = chemicals;
-    int chemindex = 0;
-    int increment = chem_max - 1;
-    for ( int i = 0; i < 4; i++ ) {
-        increment /= 26;
-        if ( name[i] == ' ' ) {
-            chemindex = CHEM_MAX - 1;
-            break;
-        }
-        chemindex += ( name[i] - 'A' ) * increment;
-    }
+    int chemindex = addChemical( name, &chem_max, chem_names );
     size_t base_ore = getOre( chemicals + chemindex, 1 );
     if ( ore == 1 )
         return base_ore;
@@ -113,7 +132,7 @@ size_t computeFuel( struct chem *chemicals, size_t chem_max, const char *name,
     // way? YOU BET!
     short add = 1;
     while ( 1 ) {
-        for ( size_t i = 0; i < CHEM_MAX; i++ ) {
+        for ( size_t i = 0; i < chem_max; i++ ) {
             required[i] = 0;
             excess[i] = 0;
         }
@@ -143,17 +162,38 @@ void freeChems( struct chem *chemicals ) {
 
 int main() {
     FILE *in = fopen( "input", "r" );
-    struct chem *chemicals = calloc( CHEM_MAX, sizeof( struct chem ) );
-    if ( chemicals == NULL )
-        error( EXIT_FAILURE, errno, "calloc" );
-
     char *input_og = NULL;
     size_t input_len = 0;
-    chemicals[CHEM_MAX - 1].produces = 1;
+    size_t chem_num = 0;
+    while( getline( &input_og, &input_len, in ) > 0 ) {
+        chem_num++;
+    }
+    chem_num++;
+    CHEM_MAX = chem_num;
+    struct chem *chemicals = calloc( chem_num, sizeof( struct chem ) );
+    if( chemicals == NULL )
+        error( EXIT_FAILURE, errno, "calloc" );
+    char **chem_names = calloc( chem_num, sizeof( char * ) );
+    if( chem_names == NULL )
+        error( EXIT_FAILURE, errno, "calloc" );
+    chem_num = 0;
+    fclose( in );
+    in = fopen( "input", "r" );
+
     // handle input
     while ( getline( &input_og, &input_len, in ) > 0 ) {
-        char *input = input_og;
         char *end = NULL;
+        char *chem_name = input_og;
+        while( *chem_name != '=' )
+            chem_name++;
+        chem_name += 2;
+        size_t count = strtoul( chem_name, &end, 10 );
+        chem_name = end + 1;
+        size_t chemindex = addChemical( chem_name, &chem_num, chem_names );
+        chemicals[chemindex].required_ore = 0;
+        chemicals[chemindex].produces = count;
+
+        char *input = input_og;
         struct chem **requirements = malloc( sizeof( struct chem * ) );
         if( requirements == NULL )
             error( EXIT_FAILURE, errno, "malloc" );
@@ -162,18 +202,9 @@ int main() {
         size_t req_size = 0;
         // handle required chemicals
         while ( *input != '=' ) {
-            size_t chemindex = 0;
-            size_t increment = CHEM_MAX - 1;
             size_t count = strtoul( input, &end, 10 );
             input = end + 1;
-            for ( int i = 0; i < 4; i++ ) {
-                increment /= 26;
-                if ( input[i] == ' ' ) {
-                    chemindex = CHEM_MAX - 1;
-                    break;
-                }
-                chemindex += ( input[i] - 'A' ) * increment;
-            }
+            size_t reqindex = addChemical( input, &chem_num, chem_names );
             while ( *input != ' ' )
                 input++;
             input++;
@@ -182,7 +213,7 @@ int main() {
             if ( tmp == NULL )
                 error( EXIT_FAILURE, errno, "realloc" );
             requirements = tmp;
-            requirements[req_size] = &chemicals[chemindex];
+            requirements[req_size] = &chemicals[reqindex];
             tmp = realloc( requirements_count,
                            ( req_size + 1 ) * sizeof( size_t ) );
             if ( tmp == NULL )
@@ -193,24 +224,12 @@ int main() {
             req_size++;
         }
 
-        input += 2;
-        size_t chemindex = 0;
-        size_t increment = CHEM_MAX - 1;
-        size_t count = strtoul( input, &end, 10 );
-        input = end + 1;
-        for ( int i = 0; i < 4; i++ ) {
-            increment /= 26;
-            if ( input[i] == ' ' ) {
-                chemindex = CHEM_MAX - 1;
-                break;
-            }
-            chemindex += ( input[i] - 'A' ) * increment;
-        }
         chemicals[chemindex].requirements = requirements;
         chemicals[chemindex].requirements_count = requirements_count;
-        chemicals[chemindex].required_ore = 0;
-        chemicals[chemindex].produces = count;
     }
+    CHEM_MAX = chem_num;
+    ORE_INDEX = addChemical( "ORE", &chem_num, chem_names );
+    chemicals[ORE_INDEX].produces = 1;
     excess = calloc( CHEM_MAX, sizeof( size_t ) );
     if ( excess == NULL )
         error( EXIT_FAILURE, errno, "calloc" );
@@ -218,13 +237,13 @@ int main() {
     if ( required == NULL )
         error( EXIT_FAILURE, errno, "calloc" );
     printf( "TOTAL ORE FOR 1 FUEL: %zu\n",
-            computeFuel( chemicals, CHEM_MAX, "FUEL", 1 ) );
+            computeFuel( chemicals, CHEM_MAX, "FUEL", 1, chem_names ) );
     for ( size_t i = 0; i < CHEM_MAX; i++ ) {
         required[i] = 0;
         excess[i] = 0;
     }
     printf( "TOTAL FUEL: %zu\n",
-            computeFuel( chemicals, CHEM_MAX, "FUEL", 1000000000000 ) );
+            computeFuel( chemicals, CHEM_MAX, "FUEL", 1000000000000, chem_names ) );
     free( input_og );
     freeChems( chemicals );
 }
