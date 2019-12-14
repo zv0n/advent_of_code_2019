@@ -41,6 +41,8 @@ size_t getOre( struct chem *chemical, size_t count ) {
     size_t working_index = chemical - chem_base;
     required[working_index] = count;
     size_t *working_indices = malloc( sizeof( size_t ) );
+    if( working_indices == NULL )
+        error( EXIT_FAILURE, errno, "malloc" );
     working_indices[0] = working_index;
     size_t working_len = 1;
     size_t i = 0;
@@ -143,7 +145,7 @@ int main() {
     FILE *in = fopen( "input", "r" );
     struct chem *chemicals = calloc( CHEM_MAX, sizeof( struct chem ) );
     if ( chemicals == NULL )
-        error( EXIT_FAILURE, errno, "malloc" );
+        error( EXIT_FAILURE, errno, "calloc" );
 
     char *input_og = NULL;
     size_t input_len = 0;
@@ -153,6 +155,8 @@ int main() {
         char *input = input_og;
         char *end = NULL;
         struct chem **requirements = malloc( sizeof( struct chem * ) );
+        if( requirements == NULL )
+            error( EXIT_FAILURE, errno, "malloc" );
         requirements[0] = NULL;
         size_t *requirements_count = NULL;
         size_t req_size = 0;
@@ -208,7 +212,11 @@ int main() {
         chemicals[chemindex].produces = count;
     }
     excess = calloc( CHEM_MAX, sizeof( size_t ) );
+    if ( excess == NULL )
+        error( EXIT_FAILURE, errno, "calloc" );
     required = calloc( CHEM_MAX, sizeof( size_t ) );
+    if ( required == NULL )
+        error( EXIT_FAILURE, errno, "calloc" );
     printf( "TOTAL ORE FOR 1 FUEL: %zu\n",
             computeFuel( chemicals, CHEM_MAX, "FUEL", 1 ) );
     for ( size_t i = 0; i < CHEM_MAX; i++ ) {
