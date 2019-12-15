@@ -11,6 +11,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+//--[ IntCode Computer code ]--------------------------------------------------
+
 // actual
 #define PARAM_ACTUAL_0 0x0001
 #define PARAM_ACTUAL_1 0x0002
@@ -37,45 +39,6 @@ const int param_flags[] = {
     PARAM_ACTUAL_4,   PARAM_ACTUAL_5,   PARAM_ACTUAL_6,   PARAM_ACTUAL_7,
     PARAM_RELATIVE_0, PARAM_RELATIVE_1, PARAM_RELATIVE_2, PARAM_RELATIVE_3,
     PARAM_RELATIVE_4, PARAM_RELATIVE_5, PARAM_RELATIVE_6, PARAM_RELATIVE_7};
-
-struct queue {
-    int positions[128][3];
-    int head;
-    int tail;
-    int size;
-};
-
-void initQueue( struct queue *q ) {
-    q->head = 0;
-    q->tail = 0;
-    q->size = 128;
-}
-
-void addToQueue( int pos[3], struct queue *q ) {
-    q->positions[q->tail][0] = pos[0];
-    q->positions[q->tail][1] = pos[1];
-    q->positions[q->tail][2] = pos[2];
-    q->tail++;
-    if( q->tail == q->size )
-        q->tail = 0;
-    if( q->tail == q->head )
-        error( EXIT_FAILURE, 0, "HEAD == TAIL" );
-}
-
-void popFromQueue( int ret[3], struct queue *q ) {
-    if( q->head == q->tail )
-        return;
-    ret[0] = q->positions[q->head][0];
-    ret[1] = q->positions[q->head][1];
-    ret[2] = q->positions[q->head][2];
-    q->head++;
-    if( q->head == q->size )
-        q->head = 0;
-}
-
-bool queueEmpty( struct queue *q ) {
-    return q->head == q->tail;
-}
 
 size_t populateCode( ssize_t **code, char *input ) {
     char *end = input;
@@ -303,14 +266,17 @@ void compute( ssize_t *code, size_t code_len ) {
     }
 }
 
-void findExtremes( int **pixels, int len_x, int len_y, int *max_x, int *max_y ) {
+//--[ Printing ]---------------------------------------------------------------
+
+void findExtremes( int **pixels, int len_x, int len_y, int *max_x,
+                   int *max_y ) {
     *max_x = 0;
     *max_y = 0;
-    for( int i = 0; i < len_y; i++ ) {
-        for( int j = 0; j < len_x; j++ ) {
-            if( pixels[i][j] != 0 ) {
+    for ( int i = 0; i < len_y; i++ ) {
+        for ( int j = 0; j < len_x; j++ ) {
+            if ( pixels[i][j] != 0 ) {
                 *max_y = i;
-                if( *max_x < j )
+                if ( *max_x < j )
                     *max_x = j;
             }
         }
@@ -321,32 +287,76 @@ void printIt( int **pixels, int max_x, int max_y, bool ret ) {
     int width;
     int height;
     findExtremes( pixels, max_x, max_y, &width, &height );
-    for( int i = 0; i <= height; i++ ) {
-        for( int j = 0; j <= width; j++ ) {
-            if( pixels[i][j] == 0 )
+    for ( int i = 0; i <= height; i++ ) {
+        for ( int j = 0; j <= width; j++ ) {
+            if ( pixels[i][j] == 0 )
                 printf( "░" );
-            else if( pixels[i][j] == 1 )
+            else if ( pixels[i][j] == 1 )
                 printf( "█" );
-            else if( pixels[i][j] == 2 )
+            else if ( pixels[i][j] == 2 )
                 printf( " " );
-            else if( pixels[i][j] == 3 )
+            else if ( pixels[i][j] == 3 )
                 printf( "▬" );
             else
                 printf( "•" );
         }
         printf( "\n" );
     }
-    if( ret ) {
-        printf( "\x1b[%iD\x1b[%iA", width+1, height+1 );
+    if ( ret ) {
+        printf( "\x1b[%iD\x1b[%iA", width + 1, height + 1 );
         usleep( 2000 );
     }
 }
 
+//--[ Queue Operation ]--------------------------------------------------------
+
+struct queue {
+    int positions[128][3];
+    int head;
+    int tail;
+    int size;
+};
+
+void initQueue( struct queue *q ) {
+    q->head = 0;
+    q->tail = 0;
+    q->size = 128;
+}
+
+void addToQueue( int pos[3], struct queue *q ) {
+    q->positions[q->tail][0] = pos[0];
+    q->positions[q->tail][1] = pos[1];
+    q->positions[q->tail][2] = pos[2];
+    q->tail++;
+    if ( q->tail == q->size )
+        q->tail = 0;
+    if ( q->tail == q->head )
+        error( EXIT_FAILURE, 0, "HEAD == TAIL" );
+}
+
+void popFromQueue( int ret[3], struct queue *q ) {
+    if ( q->head == q->tail )
+        return;
+    ret[0] = q->positions[q->head][0];
+    ret[1] = q->positions[q->head][1];
+    ret[2] = q->positions[q->head][2];
+    q->head++;
+    if ( q->head == q->size )
+        q->head = 0;
+}
+
+bool queueEmpty( struct queue *q ) {
+    return q->head == q->tail;
+}
+
+//--[ Maze operations ]--------------------------------------------------------
+
 bool fullMaze( int **pixels, int max_x, int max_y ) {
-    for( int i = 1; i < max_y - 1; i++ ) {
-        for( int j = 1; j < max_x - 1; j++ ) {
-            if( pixels[i][j] == 2 ) {
-                if( pixels[i-1][j] == 0 || pixels[i+1][j] == 0 || pixels[i][j-1] == 0 || pixels[i][j+1] == 0 )
+    for ( int i = 1; i < max_y - 1; i++ ) {
+        for ( int j = 1; j < max_x - 1; j++ ) {
+            if ( pixels[i][j] == 2 ) {
+                if ( pixels[i - 1][j] == 0 || pixels[i + 1][j] == 0 ||
+                     pixels[i][j - 1] == 0 || pixels[i][j + 1] == 0 )
                     return false;
             }
         }
@@ -355,9 +365,9 @@ bool fullMaze( int **pixels, int max_x, int max_y ) {
 }
 
 bool emptyMaze( int **pixels, int max_x, int max_y ) {
-    for( int i = 1; i < max_y - 1; i++ ) {
-        for( int j = 1; j < max_x - 1; j++ ) {
-            if( pixels[i][j] == 2 ) {
+    for ( int i = 1; i < max_y - 1; i++ ) {
+        for ( int j = 1; j < max_x - 1; j++ ) {
+            if ( pixels[i][j] == 2 ) {
                 return false;
             }
         }
@@ -366,7 +376,7 @@ bool emptyMaze( int **pixels, int max_x, int max_y ) {
 }
 
 int findShortestWay( int in_fd, int out_fd ) {
-    printf("\x1b[?25l");
+    printf( "\x1b[?25l" );
     FILE *f_in = fdopen( in_fd, "r" );
     char *input = NULL;
     size_t input_len = 0;
@@ -376,158 +386,158 @@ int findShortestWay( int in_fd, int out_fd ) {
     int cur_y = 21;
     int next_x = 0;
     int next_y = 0;
-    int **pixels = calloc( max_y, sizeof( int* ) );
-    for( int i = 0; i < max_y; i++ ) {
+    int **pixels = calloc( max_y, sizeof( int * ) );
+    for ( int i = 0; i < max_y; i++ ) {
         pixels[i] = calloc( max_x, sizeof( int ) );
     }
     int next_dir = 1;
     pixels[cur_y][cur_x] = 2;
-    while( !fullMaze( pixels, max_x, max_y ) ) {
+    while ( !fullMaze( pixels, max_x, max_y ) ) {
         int prevval = pixels[cur_y][cur_x];
         pixels[cur_y][cur_x] = 4;
         pixels[cur_y][cur_x] = prevval;
-        switch( next_dir ) {
-            case 1:
-                write( out_fd, "1\n", 2 );
-                next_y = cur_y - 1;
-                next_x = cur_x;
-                break;
-            case 2:
-                write( out_fd, "2\n", 2 );
-                next_y = cur_y + 1;
-                next_x = cur_x;
-                break;
-            case 3:
-                write( out_fd, "3\n", 2 );
-                next_x = cur_x - 1;
-                next_y = cur_y;
-                break;
-            default:
-                write( out_fd, "4\n", 2 );
-                next_x = cur_x + 1;
-                next_y = cur_y;
-                break;
+        switch ( next_dir ) {
+        case 1:
+            write( out_fd, "1\n", 2 );
+            next_y = cur_y - 1;
+            next_x = cur_x;
+            break;
+        case 2:
+            write( out_fd, "2\n", 2 );
+            next_y = cur_y + 1;
+            next_x = cur_x;
+            break;
+        case 3:
+            write( out_fd, "3\n", 2 );
+            next_x = cur_x - 1;
+            next_y = cur_y;
+            break;
+        default:
+            write( out_fd, "4\n", 2 );
+            next_x = cur_x + 1;
+            next_y = cur_y;
+            break;
         }
         getline( &input, &input_len, f_in );
         int status = strtoimax( input, NULL, 10 );
 
-        switch( status ) {
-            case 1:
-                pixels[next_y][next_x] = 2;
-                cur_x = next_x;
-                cur_y = next_y;
-                /* FALLTHROUGH */
-            case 0:
-                if( status == 0 )
-                    pixels[next_y][next_x] = 1;
-                if( pixels[cur_y][cur_x+1] == 0 ) {
-                    next_dir = 4;
-                } else if ( pixels[cur_y+1][cur_x] == 0 ) {
-                    next_dir = 2;
-                } else if ( pixels[cur_y][cur_x-1] == 0 ) {
-                    next_dir = 3;
-                } else if ( pixels[cur_y-1][cur_x] == 0 ) {
-                    next_dir = 1;
-                } else if ( status == 0 ) {
-                    switch( next_dir ) {
-                        case 1:
-                            if( pixels[cur_y][cur_x+1] != 1 )
-                                next_dir = 4;
-                            else if( pixels[cur_y][cur_x-1] != 1 )
-                                next_dir = 3;
-                            else
-                                next_dir = 2;
-                            break;
-                        case 2:
-                            if( pixels[cur_y][cur_x-1] != 1 )
-                                next_dir = 3;
-                            else if( pixels[cur_y][cur_x+1] != 1 )
-                                next_dir = 4;
-                            else
-                                next_dir = 1;
-                            break;
-                        case 3:
-                            if( pixels[cur_y-1][cur_x] != 1 )
-                                next_dir = 1;
-                            else if( pixels[cur_y+1][cur_x] != 1 )
-                                next_dir = 2;
-                            else
-                                next_dir = 4;
-                            break;
-                        default:
-                            if( pixels[cur_y+1][cur_x] != 1 )
-                                next_dir = 2;
-                            else if( pixels[cur_y-1][cur_x] != 1 )
-                                next_dir = 1;
-                            else
-                                next_dir = 3;
-                            break;
-                    }
-                } else {
-                    switch( next_dir ) {
-                        case 1:
-                            if( pixels[cur_y][cur_x-1] == 2 )
-                                next_dir = 3;
-                            break;
-                        case 2:
-                            if( pixels[cur_y][cur_x+1] == 2 )
-                                next_dir = 4;
-                            break;
-                        case 3:
-                            if( pixels[cur_y+1][cur_x] == 2 )
-                                next_dir = 2;
-                            break;
-                        case 4:
-                            if( pixels[cur_y-1][cur_x] == 2 )
-                                next_dir = 1;
-                            break;
-                    }
+        switch ( status ) {
+        case 1:
+            pixels[next_y][next_x] = 2;
+            cur_x = next_x;
+            cur_y = next_y;
+            /* FALLTHROUGH */
+        case 0:
+            if ( status == 0 )
+                pixels[next_y][next_x] = 1;
+            if ( pixels[cur_y][cur_x + 1] == 0 ) {
+                next_dir = 4;
+            } else if ( pixels[cur_y + 1][cur_x] == 0 ) {
+                next_dir = 2;
+            } else if ( pixels[cur_y][cur_x - 1] == 0 ) {
+                next_dir = 3;
+            } else if ( pixels[cur_y - 1][cur_x] == 0 ) {
+                next_dir = 1;
+            } else if ( status == 0 ) {
+                switch ( next_dir ) {
+                case 1:
+                    if ( pixels[cur_y][cur_x + 1] != 1 )
+                        next_dir = 4;
+                    else if ( pixels[cur_y][cur_x - 1] != 1 )
+                        next_dir = 3;
+                    else
+                        next_dir = 2;
+                    break;
+                case 2:
+                    if ( pixels[cur_y][cur_x - 1] != 1 )
+                        next_dir = 3;
+                    else if ( pixels[cur_y][cur_x + 1] != 1 )
+                        next_dir = 4;
+                    else
+                        next_dir = 1;
+                    break;
+                case 3:
+                    if ( pixels[cur_y - 1][cur_x] != 1 )
+                        next_dir = 1;
+                    else if ( pixels[cur_y + 1][cur_x] != 1 )
+                        next_dir = 2;
+                    else
+                        next_dir = 4;
+                    break;
+                default:
+                    if ( pixels[cur_y + 1][cur_x] != 1 )
+                        next_dir = 2;
+                    else if ( pixels[cur_y - 1][cur_x] != 1 )
+                        next_dir = 1;
+                    else
+                        next_dir = 3;
+                    break;
                 }
-                break;
-            default:
-                pixels[next_y][next_x] = 3;
-                cur_x = next_x;
-                cur_y = next_y;
-                break;
+            } else {
+                switch ( next_dir ) {
+                case 1:
+                    if ( pixels[cur_y][cur_x - 1] == 2 )
+                        next_dir = 3;
+                    break;
+                case 2:
+                    if ( pixels[cur_y][cur_x + 1] == 2 )
+                        next_dir = 4;
+                    break;
+                case 3:
+                    if ( pixels[cur_y + 1][cur_x] == 2 )
+                        next_dir = 2;
+                    break;
+                case 4:
+                    if ( pixels[cur_y - 1][cur_x] == 2 )
+                        next_dir = 1;
+                    break;
+                }
+            }
+            break;
+        default:
+            pixels[next_y][next_x] = 3;
+            cur_x = next_x;
+            cur_y = next_y;
+            break;
         }
     }
-    int **pixels_backup = malloc( max_y * sizeof( int* ) );
-    for( int i = 0; i < max_y; i++ ) {
+    int **pixels_backup = malloc( max_y * sizeof( int * ) );
+    for ( int i = 0; i < max_y; i++ ) {
         pixels_backup[i] = malloc( max_x * sizeof( int ) );
         memcpy( pixels_backup[i], pixels[i], max_x * sizeof( int ) );
     }
-    int pos[3] = {21,21,0};
-    int tmppos[3] = {0,0,0};
+    int pos[3] = {21, 21, 0};
+    int tmppos[3] = {0, 0, 0};
     struct queue q;
     initQueue( &q );
     addToQueue( pos, &q );
     int steps = 0;
-    while( !queueEmpty( &q ) ) {
+    while ( !queueEmpty( &q ) ) {
         popFromQueue( pos, &q );
-        if( pixels[pos[1]][pos[0]] == 3 ) {
+        if ( pixels[pos[1]][pos[0]] == 3 ) {
             steps = pos[2];
             break;
         }
         pixels[pos[1]][pos[0]] = 0;
-        if( pixels[pos[1]][pos[0] + 1] >= 2 ) {
+        if ( pixels[pos[1]][pos[0] + 1] >= 2 ) {
             tmppos[0] = pos[0] + 1;
             tmppos[1] = pos[1];
             tmppos[2] = pos[2] + 1;
             addToQueue( tmppos, &q );
         }
-        if( pixels[pos[1]][pos[0] - 1] >= 2 ) {
+        if ( pixels[pos[1]][pos[0] - 1] >= 2 ) {
             tmppos[0] = pos[0] - 1;
             tmppos[1] = pos[1];
             tmppos[2] = pos[2] + 1;
             addToQueue( tmppos, &q );
         }
-        if( pixels[pos[1] + 1][pos[0]] >= 2 ) {
+        if ( pixels[pos[1] + 1][pos[0]] >= 2 ) {
             tmppos[0] = pos[0];
             tmppos[1] = pos[1] + 1;
             tmppos[2] = pos[2] + 1;
             addToQueue( tmppos, &q );
         }
-        if( pixels[pos[1] - 1][pos[0]] >= 2 ) {
+        if ( pixels[pos[1] - 1][pos[0]] >= 2 ) {
             tmppos[0] = pos[0];
             tmppos[1] = pos[1] - 1;
             tmppos[2] = pos[2] + 1;
@@ -538,7 +548,7 @@ int findShortestWay( int in_fd, int out_fd ) {
         printIt( pixels, max_x, max_y, true );
         pixels[pos[1]][pos[0]] = prevval;
     }
-    for( int i = 0; i < max_y; i++ ) {
+    for ( int i = 0; i < max_y; i++ ) {
         free( pixels[i] );
     }
     free( pixels );
@@ -546,28 +556,28 @@ int findShortestWay( int in_fd, int out_fd ) {
     initQueue( &q );
     pos[2] = 0;
     addToQueue( pos, &q );
-    while( !emptyMaze( pixels_backup, max_x, max_y ) && !queueEmpty( &q ) ) {
+    while ( !emptyMaze( pixels_backup, max_x, max_y ) && !queueEmpty( &q ) ) {
         popFromQueue( pos, &q );
         pixels_backup[pos[1]][pos[0]] = 0;
-        if( pixels_backup[pos[1]][pos[0] + 1] >= 2 ) {
+        if ( pixels_backup[pos[1]][pos[0] + 1] >= 2 ) {
             tmppos[0] = pos[0] + 1;
             tmppos[1] = pos[1];
             tmppos[2] = pos[2] + 1;
             addToQueue( tmppos, &q );
         }
-        if( pixels_backup[pos[1]][pos[0] - 1] >= 2 ) {
+        if ( pixels_backup[pos[1]][pos[0] - 1] >= 2 ) {
             tmppos[0] = pos[0] - 1;
             tmppos[1] = pos[1];
             tmppos[2] = pos[2] + 1;
             addToQueue( tmppos, &q );
         }
-        if( pixels_backup[pos[1] + 1][pos[0]] >= 2 ) {
+        if ( pixels_backup[pos[1] + 1][pos[0]] >= 2 ) {
             tmppos[0] = pos[0];
             tmppos[1] = pos[1] + 1;
             tmppos[2] = pos[2] + 1;
             addToQueue( tmppos, &q );
         }
-        if( pixels_backup[pos[1] - 1][pos[0]] >= 2 ) {
+        if ( pixels_backup[pos[1] - 1][pos[0]] >= 2 ) {
             tmppos[0] = pos[0];
             tmppos[1] = pos[1] - 1;
             tmppos[2] = pos[2] + 1;
@@ -581,8 +591,8 @@ int findShortestWay( int in_fd, int out_fd ) {
     printIt( pixels_backup, max_x, max_y, false );
     printf( "SHORTEST WAY TO LEAK IS: %i\n", steps );
     printf( "OXYGEN TAKES %i MINUTES TO FILL THE SHIP\n", pos[2] );
-    printf("\x1b[?25h");
-    for( int i = 0; i < max_y; i++ ) {
+    printf( "\x1b[?25h" );
+    for ( int i = 0; i < max_y; i++ ) {
         free( pixels_backup[i] );
     }
     free( pixels_backup );
@@ -617,7 +627,7 @@ int main() {
         setbuf( stdout, NULL );
         compute( code, code_len );
         printf( "E\n" );
-        exit(0);
+        exit( 0 );
     } else if ( pid < 0 ) {
         error( EXIT_FAILURE, errno, "fork" );
     }
@@ -627,4 +637,5 @@ int main() {
     kill( pid, SIGTERM );
     free( code );
     free( input );
+    fclose( in );
 }
