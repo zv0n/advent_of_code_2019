@@ -34,6 +34,8 @@
 #define PARAM_RELATIVE_6 0x4000
 #define PARAM_RELATIVE_7 0x8000
 
+#define codemultiplier 20
+
 const int param_flags[] = {
     PARAM_ACTUAL_0,   PARAM_ACTUAL_1,   PARAM_ACTUAL_2,   PARAM_ACTUAL_3,
     PARAM_ACTUAL_4,   PARAM_ACTUAL_5,   PARAM_ACTUAL_6,   PARAM_ACTUAL_7,
@@ -59,7 +61,7 @@ size_t populateCode( ssize_t **code, char *input ) {
             *code = tmp;
         }
     }
-    ssize_t *tmp = realloc( *code, code_len * 10 * sizeof( ssize_t ) );
+    ssize_t *tmp = realloc( *code, code_len * codemultiplier * sizeof( ssize_t ) );
     if ( tmp == NULL )
         error( EXIT_FAILURE, errno, "realloc" );
     *code = tmp;
@@ -96,7 +98,7 @@ void compute( ssize_t *code, size_t code_len ) {
     size_t input_len = 0;
     size_t flags = 0;
     int instruction = 0;
-    size_t actual_code_len = 10 * code_len;
+    size_t actual_code_len = codemultiplier * code_len;
     ssize_t index = 0;
     for ( size_t i = 0; i < code_len; ) {
         instruction = getInstruction( code[i], &flags );
@@ -153,6 +155,7 @@ void compute( ssize_t *code, size_t code_len ) {
                 index = code[i + 1];
             }
             testOutOfBounds( actual_code_len, index );
+            printf( "I\n" );
             getline( &input, &input_len, stdin );
             res = strtoimax( input, &end, 10 );
             if ( *end != '\n' && *end != '\0' )
@@ -256,6 +259,7 @@ void compute( ssize_t *code, size_t code_len ) {
             i += 2;
             break;
         case 99:
+            free( input );
             return;
         default:
             error( EXIT_FAILURE, 0,
@@ -313,7 +317,7 @@ int intersections( char **lines, int lines_num, int line_len ) {
     return ret;
 }
 
-int findIntersections( int in_fd, int out_fd ) {
+int findIntersections( int in_fd, int out_fd, const char *pattern, const char *A, const char *B, const char *C ) {
     FILE *f_in = fdopen( in_fd, "r" );
     char *input = NULL;
     size_t input_len = 0;
@@ -322,6 +326,26 @@ int findIntersections( int in_fd, int out_fd ) {
     lines[0][0] = '\0';
     size_t line_len = 0;
     size_t lines_num = 0;
+
+    char output[5];
+    const char *buffer = pattern;
+    for( int i = 0; i < 4; i++ ) {
+        for( size_t j = 0; j < strlen( buffer ); j++ ) {
+            sprintf( output, "%i\n", (short)buffer[j] );
+            write( out_fd, output, strlen( output ) );
+        }
+        write( out_fd, "10\n", 3 );
+        if( buffer == pattern ) {
+            buffer = A;
+        } else if ( buffer == A ) {
+            buffer = B;
+        } else {
+            buffer = C;
+        }
+    }
+
+    write( out_fd, "110\n", 4 );
+    write( out_fd, "10\n", 3 );
     while ( getline( &input, &input_len, f_in ) ) {
         if ( input[0] == '1' && input[1] == '0' ) {
             lines_num++;
@@ -340,12 +364,17 @@ int findIntersections( int in_fd, int out_fd ) {
     while ( getline( &input, &input_len, f_in ) > 0 ) {
         if ( input[0] == '1' && input[1] == '0' ) {
             lines_num++;
-            lines = realloc( lines, ( lines_num + 1 ) * sizeof( char * ) );
+            void *tmp = realloc( lines, ( lines_num + 1 ) * sizeof( char * ) );
+            if( tmp == NULL )
+                error( EXIT_FAILURE, errno, "realloc" );
+            lines = tmp;
             lines[lines_num] = malloc( line_len + 1 );
             lines[lines_num][line_len] = '\0';
             i = 0;
             continue;
         }
+        if ( input[0] == 'I' )
+            break;
         lines[lines_num][i] = strtoimax( input, NULL, 10 );
         i++;
     }
@@ -353,6 +382,18 @@ int findIntersections( int in_fd, int out_fd ) {
 
     int ret = intersections( lines, lines_num, line_len );
     printIt( lines, lines_num );
+    printf( "THE INTERSECTION ALIGNMENT PARAMETERS ARE %i!\n", ret );
+    while( getline( &input, &input_len, f_in ) > 0 ) {};
+    input[strlen(input)-1] = '\0';
+    printf( "ROBOT COLLECTED %s OF DUST!\n", input );
+
+    free( input );
+    for( size_t i = 0; i <= lines_num+1; i++ ) {
+        free( lines[i] );
+    }
+    free( lines );
+
+    fclose( f_in );
 
     return ret;
 }
@@ -364,6 +405,8 @@ int main() {
     getline( &input, &input_len, in );
     ssize_t *code = NULL;
     size_t code_len = populateCode( &code, input );
+    fclose( in );
+    code[0] = 2;
     int pipes[2];
     pipe( pipes );
     int robot_in = pipes[0];
@@ -381,17 +424,20 @@ int main() {
             error( EXIT_FAILURE, errno, "dup2" );
         setbuf( stdout, NULL );
         compute( code, code_len );
-        printf( "E\n" );
+        free( code );
+        free( input );
         exit( 0 );
     } else if ( pid < 0 ) {
         error( EXIT_FAILURE, errno, "fork" );
     }
-    close( robot_in );
     close( robot_out );
-    printf( "THE INTERSECTION ALIGNMENT PARAMETERS ARE %i!\n",
-            findIntersections( program_in, program_out ) );
+    findIntersections( program_in, program_out, "A,B,A,B,C,C,B,A,B,C",
+                 "L,12,L,6,L,8,R,6", "L,8,L,8,R,4,R,6,R,6",
+                 "L,12,R,6,L,8" );
+
+    close( program_in );
+    close( program_out );
     kill( pid, SIGTERM );
     free( code );
     free( input );
-    fclose( in );
 }
