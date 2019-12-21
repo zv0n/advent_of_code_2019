@@ -9,6 +9,7 @@ ${PROJECT}: main.c
 
 test: ${PROJECT}
 	cat assembly_program | ./${PROJECT}
+	cat assembly_program2 | ./${PROJECT}
 
 clean:
 	${RM} *.o ${PROJECT} black

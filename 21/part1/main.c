@@ -336,7 +336,7 @@ void insertCode( int in_fd, int out_fd ) {
             sprintf( buffer, "%i\n", (int)input[i] );
             write( out_fd, buffer, strlen( buffer ) );
         }
-        if( !strcmp( input, "WALK\n" ) )
+        if( !strcmp( input, "WALK\n" ) || !strcmp( input, "RUN\n" ) )
             break;
     }
 
