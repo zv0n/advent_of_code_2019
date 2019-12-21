@@ -11,7 +11,9 @@
 #include <sys/stat.h>
 
 struct queue {
-    int positions[128][3];
+    // 0 - index
+    // 1 - path
+    int positions[128][2];
     int head;
     int tail;
     int size;
@@ -23,10 +25,9 @@ void initQueue( struct queue *q ) {
     q->size = 128;
 }
 
-void addToQueue( int pos[3], struct queue *q ) {
+void addToQueue( int pos[2], struct queue *q ) {
     q->positions[q->tail][0] = pos[0];
     q->positions[q->tail][1] = pos[1];
-    q->positions[q->tail][2] = pos[2];
     q->tail++;
     if ( q->tail == q->size )
         q->tail = 0;
@@ -34,12 +35,11 @@ void addToQueue( int pos[3], struct queue *q ) {
         error( EXIT_FAILURE, 0, "HEAD == TAIL" );
 }
 
-void popFromQueue( int ret[3], struct queue *q ) {
+void popFromQueue( int ret[2], struct queue *q ) {
     if ( q->head == q->tail )
         return;
     ret[0] = q->positions[q->head][0];
     ret[1] = q->positions[q->head][1];
-    ret[2] = q->positions[q->head][2];
     q->head++;
     if ( q->head == q->size )
         q->head = 0;
@@ -53,31 +53,30 @@ int shortestPath( int **graph, int source_x, int source_y, int target_x,
                   int target_y, int graph_len, int graph_lines ) {
     struct queue q;
     initQueue( &q );
-    int cur[3] = {source_x, source_y, 0};
-    int tmp[3] = {0, 0, 0};
-    uint64_t index = source_y * graph_len + source_x;
-    graph[index][index] = -2;
+    int cur[2] = {source_y * graph_len + source_x, 0};
+    int target_index = target_y*graph_len + target_x;
+    int tmp[2] = {0, 0 };
+    graph[cur[0]][cur[0]] = -2;
     addToQueue( cur, &q );
     uint64_t shortest = -1;
     while ( !queueEmpty( &q ) ) {
         popFromQueue( cur, &q );
-        index = cur[1] * graph_len + cur[0];
+        size_t index = cur[0];
         graph[index][index] = -2;
-        if ( cur[0] == target_x && cur[1] == target_y ) {
-            if ( (size_t)cur[2] < shortest ) {
-                shortest = cur[2];
+        if ( cur[0] == target_index ) {
+            if ( (size_t)cur[1] < shortest ) {
+                shortest = cur[1];
             }
-            continue;
+            break;
         }
         for ( size_t i = graph_len; i < (size_t)graph_len * graph_lines; i++ ) {
             if ( i == index )
                 continue;
             if ( graph[index][i] != -1 && graph[i][i] != -2 ) {
-                uint64_t new_path_weight = cur[2] + graph[index][i];
+                uint64_t new_path_weight = cur[1] + graph[index][i];
                 if ( new_path_weight < shortest ) {
-                    tmp[1] = i / graph_len;
-                    tmp[0] = i - tmp[1] * graph_len;
-                    tmp[2] = new_path_weight;
+                    tmp[0] = i;
+                    tmp[1] = new_path_weight;
                     addToQueue( tmp, &q );
                 }
             }
