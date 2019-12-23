@@ -357,6 +357,10 @@ void communicate( int pipes_array[nic_count][2] ) {
                 if ( nat_y == prev_nat_y && nat_x != -1 ) {
                     printf( "TWICE IN A ROW:\n\tX: %li, Y: %li\n", nat_x,
                             nat_y );
+                    for( int i = 0; i < nic_count; i++ ) {
+                        fclose( file_pointers[i] );
+                    }
+                    free( input );
                     return;
                 }
                 prev_nat_y = nat_y;
@@ -382,6 +386,7 @@ int main() {
     ssize_t *code = NULL;
     size_t code_len = populateCode( &code, input );
     fclose( in );
+    free( input );
 
     int pipes_array[nic_count][2];
     int pids[nic_count];
@@ -405,7 +410,6 @@ int main() {
             compute( code, code_len );
             printf( "END\n" );
             free( code );
-            free( input );
             exit( 0 );
         } else if ( pid < 0 ) {
             error( EXIT_FAILURE, errno, "fork" );
@@ -423,5 +427,4 @@ int main() {
         kill( pids[i], SIGTERM );
     }
     free( code );
-    free( input );
 }
