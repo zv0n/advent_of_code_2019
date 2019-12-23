@@ -64,7 +64,8 @@ size_t populateCode( ssize_t **code, char *input ) {
             *code = tmp;
         }
     }
-    ssize_t *tmp = realloc( *code, code_len * codemultiplier * sizeof( ssize_t ) );
+    ssize_t *tmp =
+        realloc( *code, code_len * codemultiplier * sizeof( ssize_t ) );
     if ( tmp == NULL )
         error( EXIT_FAILURE, errno, "realloc" );
     *code = tmp;
@@ -279,70 +280,116 @@ void communicate( int pipes_array[nic_count][2] ) {
     size_t input_len = 0;
     char buffer[128];
     int packets[nic_count];
+    struct flock fl;
+    fl.l_type = F_WRLCK;
+    fl.l_whence = SEEK_SET;
 
-    for( long i = 0; i < nic_count; i++ ) {
+    for ( long i = 0; i < nic_count; i++ ) {
         fcntl( F_SETFD, pipes_array[i][0], O_NONBLOCK );
         file_pointers[i] = fdopen( pipes_array[i][0], "r" );
         getline( &input, &input_len, file_pointers[i] );
         sprintf( buffer, "%li\n", i );
+        fl.l_type = F_WRLCK;
+        fcntl( pipes_array[i][1], F_SETLKW, &fl );
         write( pipes_array[i][1], buffer, strlen( buffer ) );
+        fl.l_type = F_UNLCK;
+        fcntl( pipes_array[i][1], F_SETLKW, &fl );
         packets[i] = 0;
     }
 
-    while( 1 ) {
-        for( int i = 0; i < nic_count; i++ ) {
-            if( getline( &input, &input_len, file_pointers[i] ) <= 0 )
+    long nat_x = -1;
+    long nat_y = -1;
+    long prev_nat_y = -1;
+    long idling = 0;
+    bool first = false;
+
+    while ( 1 ) {
+        for ( int i = 0; i < nic_count; i++ ) {
+            if ( getline( &input, &input_len, file_pointers[i] ) <= 0 )
                 continue;
-            if( input[0] == 'E' )
+            if ( input[0] == 'E' )
                 continue;
-            if( input[0] == 'I' ) {
-                if( packets[i] == 0 ) {
+            if ( input[0] == 'I' ) {
+                if ( packets[i] == 0 ) {
+                    fl.l_type = F_WRLCK;
+                    fcntl( pipes_array[i][1], F_SETLKW, &fl );
                     write( pipes_array[i][1], "-1\n", 3 );
-                    getline( &input, &input_len, file_pointers[i] );
-                    if( input[0] != 'I' )
-                        goto sending;
-                    write( pipes_array[i][1], "-1\n", 3 );
+                    fl.l_type = F_UNLCK;
+                    fcntl( pipes_array[i][1], F_SETLKW, &fl );
                 } else {
                     getline( &input, &input_len, file_pointers[i] );
                     --packets[i];
-                    while( packets[i] > 0 ) {
-                        getline( &input, &input_len, file_pointers[i] );
-                        getline( &input, &input_len, file_pointers[i] );
-                        --packets[i];
-                    }
-                    getline( &input, &input_len, file_pointers[i] );
-                    if( input[0] != 'I' )
-                        goto sending;
-                    write( pipes_array[i][1], "-1\n", 3 );
                 }
             } else {
-sending:
                 do {
                     long address = strtol( input, NULL, 10 );
                     getline( &input, &input_len, file_pointers[i] );
                     long x = strtol( input, NULL, 10 );
                     getline( &input, &input_len, file_pointers[i] );
                     long y = strtol( input, NULL, 10 );
-                    if( address == 255 ) {
-                        printf( "X: %li,Y: %li\n", x, y );
-                        for( int i = 0; i < nic_count; i++ ) {
-                            fclose( file_pointers[i] );
+                    if ( address == 255 ) {
+                        if ( !first ) {
+                            printf( "FIRST:\n\tX: %li,Y: %li\n", x, y );
+                            first = true;
                         }
-                        return;
+                        nat_x = x;
+                        nat_y = y;
+                        goto endloop;
                     }
                     sprintf( buffer, "%li\n", x );
+
+                    fl.l_type = F_WRLCK;
+                    fcntl( pipes_array[address][1], F_SETLKW, &fl );
                     write( pipes_array[address][1], buffer, strlen( buffer ) );
                     sprintf( buffer, "%li\n", y );
                     write( pipes_array[address][1], buffer, strlen( buffer ) );
+                    fl.l_type = F_UNLCK;
+                    fcntl( pipes_array[address][1], F_SETLKW, &fl );
+
                     ++packets[address];
+                endloop:
                     getline( &input, &input_len, file_pointers[i] );
-                } while( input[0] != 'I' );
-                if( packets[i] == 0 ) {
+                } while ( input[0] != 'I' );
+                if ( packets[i] == 0 ) {
+                    fl.l_type = F_WRLCK;
+                    fcntl( pipes_array[i][1], F_SETLKW, &fl );
                     write( pipes_array[i][1], "-1\n", 3 );
+                    fl.l_type = F_UNLCK;
+                    fcntl( pipes_array[i][1], F_SETLKW, &fl );
                 } else {
                     getline( &input, &input_len, file_pointers[i] );
                     --packets[i];
                 }
+            }
+        }
+        bool idle = true;
+        for ( int i = 0; i < nic_count; i++ ) {
+            if ( packets[i] != 0 ) {
+                idle = false;
+                break;
+            }
+        }
+        if ( idle ) {
+            if ( idling > 2 ) {
+                if ( nat_y == prev_nat_y && nat_x != -1 ) {
+                    printf( "TWICE IN A ROW:\n\tX: %li, Y: %li\n", nat_x,
+                            nat_y );
+                    return;
+                }
+                prev_nat_y = nat_y;
+                sprintf( buffer, "%li\n", nat_x );
+
+                fl.l_type = F_WRLCK;
+                fcntl( pipes_array[0][1], F_SETLKW, &fl );
+                write( pipes_array[0][1], buffer, strlen( buffer ) );
+                sprintf( buffer, "%li\n", nat_y );
+                write( pipes_array[0][1], buffer, strlen( buffer ) );
+                fl.l_type = F_UNLCK;
+                fcntl( pipes_array[0][1], F_SETLKW, &fl );
+                ++packets[0];
+                idling = 0;
+            } else {
+                idling++;
             }
         }
     }
@@ -359,7 +406,7 @@ int main() {
 
     int pipes_array[nic_count][2];
     int pids[nic_count];
-    for( int i = 0; i < nic_count; i++ ) {
+    for ( int i = 0; i < nic_count; i++ ) {
         int pipes[2];
         pipe( pipes );
         int robot_in = pipes[0];
@@ -391,7 +438,7 @@ int main() {
     }
     communicate( pipes_array );
 
-    for( int i = 0; i < nic_count; i++ ) {
+    for ( int i = 0; i < nic_count; i++ ) {
         close( pipes_array[i][0] );
         close( pipes_array[i][1] );
         kill( pids[i], SIGTERM );
