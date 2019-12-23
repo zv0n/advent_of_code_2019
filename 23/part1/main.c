@@ -280,20 +280,13 @@ void communicate( int pipes_array[nic_count][2] ) {
     size_t input_len = 0;
     char buffer[128];
     int packets[nic_count];
-    struct flock fl;
-    fl.l_type = F_WRLCK;
-    fl.l_whence = SEEK_SET;
 
     for ( long i = 0; i < nic_count; i++ ) {
         fcntl( F_SETFD, pipes_array[i][0], O_NONBLOCK );
         file_pointers[i] = fdopen( pipes_array[i][0], "r" );
         getline( &input, &input_len, file_pointers[i] );
         sprintf( buffer, "%li\n", i );
-        fl.l_type = F_WRLCK;
-        fcntl( pipes_array[i][1], F_SETLKW, &fl );
         write( pipes_array[i][1], buffer, strlen( buffer ) );
-        fl.l_type = F_UNLCK;
-        fcntl( pipes_array[i][1], F_SETLKW, &fl );
         packets[i] = 0;
     }
 
@@ -311,11 +304,7 @@ void communicate( int pipes_array[nic_count][2] ) {
                 continue;
             if ( input[0] == 'I' ) {
                 if ( packets[i] == 0 ) {
-                    fl.l_type = F_WRLCK;
-                    fcntl( pipes_array[i][1], F_SETLKW, &fl );
                     write( pipes_array[i][1], "-1\n", 3 );
-                    fl.l_type = F_UNLCK;
-                    fcntl( pipes_array[i][1], F_SETLKW, &fl );
                 } else {
                     getline( &input, &input_len, file_pointers[i] );
                     --packets[i];
@@ -338,24 +327,16 @@ void communicate( int pipes_array[nic_count][2] ) {
                     }
                     sprintf( buffer, "%li\n", x );
 
-                    fl.l_type = F_WRLCK;
-                    fcntl( pipes_array[address][1], F_SETLKW, &fl );
                     write( pipes_array[address][1], buffer, strlen( buffer ) );
                     sprintf( buffer, "%li\n", y );
                     write( pipes_array[address][1], buffer, strlen( buffer ) );
-                    fl.l_type = F_UNLCK;
-                    fcntl( pipes_array[address][1], F_SETLKW, &fl );
 
                     ++packets[address];
                 endloop:
                     getline( &input, &input_len, file_pointers[i] );
                 } while ( input[0] != 'I' );
                 if ( packets[i] == 0 ) {
-                    fl.l_type = F_WRLCK;
-                    fcntl( pipes_array[i][1], F_SETLKW, &fl );
                     write( pipes_array[i][1], "-1\n", 3 );
-                    fl.l_type = F_UNLCK;
-                    fcntl( pipes_array[i][1], F_SETLKW, &fl );
                 } else {
                     getline( &input, &input_len, file_pointers[i] );
                     --packets[i];
@@ -379,13 +360,9 @@ void communicate( int pipes_array[nic_count][2] ) {
                 prev_nat_y = nat_y;
                 sprintf( buffer, "%li\n", nat_x );
 
-                fl.l_type = F_WRLCK;
-                fcntl( pipes_array[0][1], F_SETLKW, &fl );
                 write( pipes_array[0][1], buffer, strlen( buffer ) );
                 sprintf( buffer, "%li\n", nat_y );
                 write( pipes_array[0][1], buffer, strlen( buffer ) );
-                fl.l_type = F_UNLCK;
-                fcntl( pipes_array[0][1], F_SETLKW, &fl );
                 ++packets[0];
                 idling = 0;
             } else {
