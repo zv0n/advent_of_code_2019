@@ -1,5 +1,5 @@
 CC ?= cc
-CFLAGS ?= -std=c99 -Wall -Wextra -pedantic -O3
+CFLAGS ?= -std=c99 -O3
 PROJECT = shuffle
 
 all: ${PROJECT}
