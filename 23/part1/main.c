@@ -274,6 +274,8 @@ void compute( ssize_t *code, size_t code_len ) {
     }
 }
 
+//--[ Router ]-----------------------------------------------------------------
+
 void communicate( int pipes_array[nic_count][2] ) {
     FILE *file_pointers[nic_count];
     char *input = NULL;

@@ -1,6 +1,6 @@
 CC ?= cc
 CFLAGS ?= -std=c99 -Wall -Wextra -pedantic
-PROJECT = network
+PROJECT = router
 
 all: ${PROJECT}
 
