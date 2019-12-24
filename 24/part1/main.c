@@ -102,11 +102,12 @@ int main( void ) {
         }
     }
 
-    int *info = malloc( 33554432 * sizeof( int ) );
+    int *info = calloc( 33554432, sizeof( int ) );
     if ( info == NULL )
         error( EXIT_FAILURE, errno, "malloc" );
 
     free( input );
+    fclose( in );
 
     while ( 1 ) {
         tick( grid );
@@ -117,4 +118,5 @@ int main( void ) {
         }
         info[res] = 1;
     }
+    free( info );
 }
