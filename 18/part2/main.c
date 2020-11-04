@@ -10,12 +10,48 @@
 #include <string.h>
 #include <sys/stat.h>
 
+#define MAXBEST 3136
+
 struct cache {
-    uint16_t best[26];
-    short prev[26][3];
+    uint16_t *best;
+    uint16_t count;
 };
 
-struct cache *globCache = NULL;
+void addToCache(struct cache *cache, int index, uint16_t value) {
+    cache->count++;
+    void *tmp = realloc(cache->best, cache->count * 2 * sizeof(uint16_t));
+    if( tmp == NULL )
+        error(1, errno, "realloc");
+    cache->best = tmp;
+    cache->best[cache->count*2 - 2] = index;
+    cache->best[cache->count*2 - 1] = value;
+}
+
+uint16_t getFromCache(struct cache *cache, int index) {
+    for(uint16_t i = 0; i < cache->count; i++) {
+        if(cache->best[i*2] == index)
+            return cache->best[i*2+1];
+    }
+    return 0;
+}
+
+void initCache(struct cache *cache) {
+    cache->count = 0;
+    cache->best = NULL;
+}
+
+struct cache **globCache = NULL;
+
+int cacheBestMult[4] = {0,0,0,0};
+
+int bestIndex(int pos[4], int keymap[26]) {
+    int ret = 0;
+    ret += ((pos[0] < 0 ? -1 : keymap[pos[0]])+1) * cacheBestMult[0];
+    ret += ((pos[1] < 0 ? -1 : keymap[pos[1]])+1) * cacheBestMult[1];
+    ret += ((pos[2] < 0 ? -1 : keymap[pos[2]])+1) * cacheBestMult[2];
+    ret += ((pos[3] < 0 ? -1 : keymap[pos[3]])+1) * cacheBestMult[3];
+    return ret;
+}
 
 struct helpingStruct {
     bool visited;
@@ -193,42 +229,50 @@ void getOtherThree( int last_quadrants[4], int notincluded, int tmp[3] ) {
     }
 }
 
-size_t shortestPathRec( size_t keys[26][3], size_t key_paths[26],
-                        size_t key_key_paths[26][26], size_t path, int depth,
-                        int available_keys[26], int found_keys[26],
-                        int *requirements[26], int key_count, int prev,
-                        int last_quadrants[4] ) {
+size_t shortestPathRec( size_t key_paths[26], size_t key_key_paths[26][26],
+                          size_t path, int depth, int available_keys[26],
+                          int found_keys[26], int *requirements[26],
+                          int key_count, int prev[4], int keymap[26], size_t keys[26][3] ) {
     size_t local_best = -1;
+    int next_prev[4];
     for ( int i = 0; i < key_count; i++ ) {
-        if ( depth < 10 )
-            printf( "DEPTH: %i, PROCESSING %i/%i\n", depth, i, key_count );
         if ( available_keys[i] == 1 ) {
+            memcpy(next_prev, prev, 4 * sizeof(int));
             size_t new_path = path;
             found_keys[i] = 1;
             size_t glob_index = keysToIndex( found_keys );
             available_keys[i] = -1;
-            int prev_quadrant = last_quadrants[keys[i][2]];
-            last_quadrants[keys[i][2]] = i;
             for ( int j = 0; j < key_count; j++ ) {
                 if ( available_keys[j] == 0 &&
                      dependenciesMet( requirements[j], found_keys ) )
                     available_keys[j] = 1;
             }
-            if ( prev_quadrant == -1 )
-                new_path += key_paths[i];
-            else
-                new_path += key_key_paths[prev_quadrant][i];
-
+            // find best path to key
+            size_t shortest_key_key = -1;
+            int minpos = -1;
+            for(int j = 0; j < 4; j++) {
+                if(prev[j] != -1) {
+                    if(key_key_paths[prev[j]][i] < shortest_key_key) {
+                        shortest_key_key = key_key_paths[prev[j]][i];
+                        minpos = j;
+                        break;
+                    }
+                }
+            }
+            if(minpos == -1) {
+                shortest_key_key = key_paths[i];
+                minpos = keys[i][2];
+            }
+            new_path += shortest_key_key;
+            next_prev[minpos] = i;
             if ( new_path >= local_best )
                 goto cleanup;
 
-            int tmp[3];
-            getOtherThree( last_quadrants, keys[i][2], tmp );
-            if ( globCache[glob_index].best[i] != 0 &&
-                 globCache[glob_index].prev[i][0] == tmp[0] &&
-                 globCache[glob_index].prev[i][1] == tmp[1] &&
-                 globCache[glob_index].prev[i][2] == tmp[2] ) {
-                new_path += globCache[glob_index].best[i];
+            struct cache *cur_globCache = globCache[glob_index];
+
+            if ( cur_globCache != 0 && getFromCache(cur_globCache, bestIndex(next_prev, keymap)) != 0 ) {
+                found_keys[i] = 0;
+                new_path += getFromCache(cur_globCache, bestIndex(next_prev, keymap));
                 if ( new_path < local_best )
                     local_best = new_path;
                 goto cleanup;
@@ -236,16 +280,14 @@ size_t shortestPathRec( size_t keys[26][3], size_t key_paths[26],
 
             if ( depth < key_count ) {
                 size_t result = shortestPathRec(
-                    keys, key_paths, key_key_paths, new_path, depth + 1,
-                    available_keys, found_keys, requirements, key_count, i,
-                    last_quadrants );
+                    key_paths, key_key_paths, new_path, depth + 1,
+                    available_keys, found_keys, requirements, key_count, next_prev, keymap, keys );
                 if ( result < local_best )
                     local_best = result;
             }
         cleanup:
             found_keys[i] = 0;
             available_keys[i] = 1;
-            last_quadrants[keys[i][2]] = prev_quadrant;
             for ( int j = 0; j < key_count; j++ ) {
                 if ( available_keys[j] == 1 &&
                      !dependenciesMet( requirements[j], found_keys ) )
@@ -257,12 +299,13 @@ size_t shortestPathRec( size_t keys[26][3], size_t key_paths[26],
             }
         }
     }
-    globCache[keysToIndex( found_keys )].best[prev] = local_best - path;
-    int tmp[3];
-    getOtherThree( last_quadrants, keys[prev][2], tmp );
-    globCache[keysToIndex( found_keys )].prev[prev][0] = tmp[0];
-    globCache[keysToIndex( found_keys )].prev[prev][1] = tmp[1];
-    globCache[keysToIndex( found_keys )].prev[prev][2] = tmp[2];
+    struct cache *cur_globCache = globCache[keysToIndex(found_keys)];
+    if(cur_globCache == 0) {
+        globCache[keysToIndex(found_keys)] = calloc( 1, sizeof( struct cache ) );
+        cur_globCache = globCache[keysToIndex(found_keys)];
+        initCache(cur_globCache);
+    }
+    addToCache(cur_globCache, bestIndex(prev, keymap), local_best - path);
     return local_best;
 }
 
@@ -284,7 +327,7 @@ int main( void ) {
         if ( tmp == NULL )
             error( EXIT_FAILURE, errno, "realloc" );
         input_graph = tmp;
-        input_graph[input_lines] = malloc( input_len );
+        input_graph[input_lines] = malloc( input_len + 1 );
         memcpy( input_graph[input_lines], input, input_len );
         input_graph[input_lines][input_len] = '\0';
         input_lines++;
@@ -323,6 +366,9 @@ int main( void ) {
     input_graph[start_y][start_x + 1] = '#';
     input_graph[start_y][start_x] = '#';
 
+    int quadrants[4] = {0,0,0,0};
+    int keymap[26] = {0};
+
     for ( int i = 0; i < key_count; i++ ) {
         keys[i][2] = 0;
         key_paths[i] = graphPath(
@@ -352,8 +398,15 @@ int main( void ) {
                            start_y + 1, keys[i][0], keys[i][1], graph_info,
                            &key_requirements[i], keys );
         }
+        keymap[i] = quadrants[keys[i][2]];
+        quadrants[keys[i][2]] += 1;
 
         resetGraph( graph_info, input_len, input_lines );
+    }
+
+    cacheBestMult[0] = MAXBEST / quadrants[0];
+    for(int i = 1; i < 4; i++) {
+        cacheBestMult[i] = cacheBestMult[i-1] / quadrants[i];
     }
 
     for ( int i = 0; i < 26; i++ ) {
@@ -364,11 +417,18 @@ int main( void ) {
 
     for ( int i = 0; i < key_count; i++ ) {
         for ( int j = i + 1; j < key_count; j++ ) {
-            key_key_paths[i][j] = graphPath(
-                input_graph, input_len, input_lines, keys[i][0], keys[i][1],
-                keys[j][0], keys[j][1], graph_info, NULL, NULL );
-            key_key_paths[j][i] = key_key_paths[i][j];
-            resetGraph( graph_info, input_len, input_lines );
+            if(keys[i][2] != keys[j][2]) {
+                // if keys are in different quadrants, their
+                // distance is "infinite"
+                key_key_paths[i][j] = -1;
+                key_key_paths[j][i] = key_key_paths[i][j];
+            } else {
+                key_key_paths[i][j] = graphPath(
+                    input_graph, input_len, input_lines, keys[i][0], keys[i][1],
+                    keys[j][0], keys[j][1], graph_info, NULL, NULL );
+                key_key_paths[j][i] = key_key_paths[i][j];
+                resetGraph( graph_info, input_len, input_lines );
+            }
         }
     }
     for ( size_t i = 0; i < input_lines; i++ ) {
@@ -380,7 +440,6 @@ int main( void ) {
 
     int available_keys[26];
     int found_keys[26];
-    int last_quadrants[4] = {-1, -1, -1, -1};
     memset( available_keys, 0, 26 * sizeof( int ) );
     memset( found_keys, 0, 26 * sizeof( int ) );
 
@@ -389,15 +448,21 @@ int main( void ) {
             available_keys[i] = 1;
     }
 
-    globCache = calloc( 67108864, sizeof( struct cache ) );
+    globCache = calloc( 67108864, sizeof( struct cache * ) );
     if ( globCache == NULL )
         error( EXIT_FAILURE, errno, "calloc" );
+    int prev[4] = {-1,-1,-1,-1};
     printf( "MINIMUM PATH TO GET ALL KEYS: %zu\n",
-            shortestPathRec( keys, key_paths, key_key_paths, 0, 1,
-                             available_keys, found_keys, key_requirements,
-                             key_count, 0, last_quadrants ) );
+            shortestPathRec( key_paths, key_key_paths, 0, 1, available_keys,
+                             found_keys, key_requirements, key_count, prev, keymap, keys ) );
     for ( int i = 0; i < key_count; i++ ) {
         free( key_requirements[i] );
+    }
+    for(int i = 0; i < 67108864; i++) {
+        if(globCache[i] != NULL) {
+            free(globCache[i]->best);
+            free(globCache[i]);
+        }
     }
     free( globCache );
     fclose( in );
